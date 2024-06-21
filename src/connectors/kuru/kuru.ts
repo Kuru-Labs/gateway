@@ -30,7 +30,7 @@ import { bigNumberWithDecimalToStr } from '../../services/base';
 
 import { KuruConfig } from './kuru.config';
 import { MarginAccount, Markets, Assets } from './kuru.constants';
-import { GetOrderStatusKey } from './kuru.utils';
+import { GetOrderStatusKey, Log10BigNumber } from './kuru.utils';
 import orderbookAbi from './OrderBook.abi.json';
 import marginAccountAbi from './MarginAccount.abi.json';
 
@@ -99,15 +99,15 @@ export class Kuru implements CLOBish {
 
       const minSizeStandardized = ethers.utils.formatUnits(
         marketParams.minSize,
-        Math.log10(marketParams.sizePrecision.toNumber()),
+        Log10BigNumber(marketParams.sizePrecision),
       );
       const tickSize = ethers.utils.formatUnits(
         1,
-        Math.log10(marketParams.pricePrecision.toNumber()),
+        Log10BigNumber(marketParams.pricePrecision),
       );
       const sizeIncrement = ethers.utils.formatUnits(
         1,
-        Math.log10(marketParams.sizePrecision.toNumber()),
+        Log10BigNumber(marketParams.sizePrecision),
       );
 
       const marketInfo: MarketInfo = {
@@ -241,8 +241,8 @@ export class Kuru implements CLOBish {
       asks[price.toString()] = size.toString();
     }
 
-    const pricePrecision = Math.log10(marketInfo.pricePrecision.toNumber());
-    const sizePrecision = Math.log10(marketInfo.sizePrecision.toNumber());
+    const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
+    const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
 
     const buys: PriceLevel[] = Object.entries(bids).map(
       ([price, quantity]) => ({
@@ -315,8 +315,8 @@ export class Kuru implements CLOBish {
     const isBuy: ethers.BigNumber = data[0][5];
     const status: BigNumber = data[1];
 
-    const pricePrecision = Math.log10(marketInfo.pricePrecision.toNumber());
-    const sizePrecision = Math.log10(marketInfo.sizePrecision.toNumber());
+    const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
+    const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
 
     const order = {
       price: ethers.utils.formatUnits(price, pricePrecision),
@@ -346,11 +346,11 @@ export class Kuru implements CLOBish {
     const marketContract = this._marketContracts[req.market];
     const price = ethers.utils.parseUnits(
       req.price,
-      Math.log10(marketInfo.pricePrecision),
+      Log10BigNumber(marketInfo.pricePrecision),
     );
     const size = ethers.utils.parseUnits(
       req.amount,
-      Math.log10(marketInfo.sizePrecision),
+      Log10BigNumber(marketInfo.sizePrecision),
     );
 
     let tx;
@@ -453,11 +453,11 @@ export class Kuru implements CLOBish {
 
       const price = ethers.utils.parseUnits(
         createOrder.price,
-        Math.log10(marketInfo.pricePrecision),
+        Log10BigNumber(marketInfo.pricePrecision),
       );
       const size = ethers.utils.parseUnits(
         createOrder.amount,
-        Math.log10(marketInfo.sizePrecision),
+        Log10BigNumber(marketInfo.sizePrecision),
       );
 
       if (createOrder.side === 'BUY') {

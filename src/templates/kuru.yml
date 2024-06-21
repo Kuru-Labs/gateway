@@ -11,5 +11,5 @@ ttl: 600
 
 contractAddresses:
   localhost:
-    routerAddress: "0x0165878A594ca255338adfa4d48449f69242Eb8F"
-    marginAccountAddress: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
+    routerAddress: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+    marginAccountAddress: "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
