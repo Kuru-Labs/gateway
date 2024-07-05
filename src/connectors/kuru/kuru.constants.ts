@@ -23,20 +23,20 @@ export const TimeInForce = {
   PO: 3, // Post Only - Requires to go in the orderbook without any fills or reverts
 };
 
-export const MarginAccount = '0x68B1D87F95878fE05B998F19b66F4baba5De1aed';
+export const MarginAccount = '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853';
 
 export const Markets = {
-  'SOL-USDC': '0xfaEB4d8AFCc9a10f54ED00c0c9a9E5EEe235104d',
+  'SOL-USDC': '0x83b24E8F72f7aD60cEa81f3925Ee54F70608A534',
   'BTC-USDC': '',
 };
 
 export const Assets = {
   SOL: {
-    address: '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e',
+    address: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
     decimals: 18,
   },
   USDC: {
-    address: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+    address: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
     decimals: 18,
   },
   ETH: {

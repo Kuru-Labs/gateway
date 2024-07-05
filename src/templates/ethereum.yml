@@ -40,8 +40,8 @@ networks:
     tokenListSource: /home/gateway/conf/lists/erc20_tokens_goerli.json
     nativeCurrencySymbol: ETH
   localhost:
-    chainID: 1
-    nodeURL: https://devnet1.monad.xyz/rpc/WbScX50z7Xsvsuk6UB1uMci8Ekee3PJqhBZ2RRx0xSjyqx9hjipbfMh60vr7a1gS
+    chainID: 31337
+    nodeURL: http://localhost:8545
     tokenListType: FILE
     tokenListSource: /home/gateway/conf/lists/ethereum_localhost.json
     nativeCurrencySymbol: ETH

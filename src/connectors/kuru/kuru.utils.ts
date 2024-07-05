@@ -16,6 +16,19 @@ export function GetMarketIdByAddress(address: string): string {
 }
 
 /**
+ * @notice Get the base token and quote token from a market symbol.
+ * @param marketSymbol The market symbol in the format BASE-QUOTE.
+ * @returns An object containing the base token and quote token.
+ */
+export function GetTokensFromMarketSymbol(marketSymbol: string): { baseToken: string; quoteToken: string } {
+  const [baseToken, quoteToken] = marketSymbol.split('-');
+  if (!baseToken || !quoteToken) {
+    throw new Error(`Invalid market symbol format: ${marketSymbol}`);
+  }
+  return { baseToken, quoteToken };
+}
+
+/**
  * @notice Get the key as a string for a given number in OrderStatus.
  * @param statusNumber The number representing the order status.
  * @returns The key as a string corresponding to the status number, or an error message if not found.

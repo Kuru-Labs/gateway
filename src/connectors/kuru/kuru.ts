@@ -30,7 +30,7 @@ import { bigNumberWithDecimalToStr } from '../../services/base';
 
 import { KuruConfig } from './kuru.config';
 import { MarginAccount, Markets, Assets } from './kuru.constants';
-import { GetOrderStatusKey, Log10BigNumber } from './kuru.utils';
+import { GetOrderStatusKey, GetTokensFromMarketSymbol, Log10BigNumber } from './kuru.utils';
 import orderbookAbi from './OrderBook.abi.json';
 import marginAccountAbi from './MarginAccount.abi.json';
 
@@ -116,6 +116,7 @@ export class Kuru implements CLOBish {
         minSizeStandardized,
         tickSize,
         sizeIncrement,
+        ...GetTokensFromMarketSymbol(market)
       };
       this.parsedMarkets[market] = marketInfo;
     }
@@ -409,14 +410,21 @@ export class Kuru implements CLOBish {
     const marketContract = this._marketContracts[req.market];
 
     const tx = await marketContract.populateTransaction.batchCancelOrders([req.orderId]);
-    const txResponse: ContractTransaction = await EVMTxBroadcaster.getInstance(
-      this._chain,
-      req.address,
-    ).broadcast(tx);
-
-    await txResponse.wait();
+    let txResponse: ContractTransaction;
+    try {
+      txResponse = await EVMTxBroadcaster.getInstance(
+        this._chain,
+        req.address,
+      ).broadcast(tx);
+      await txResponse.wait();
     
-    return { txHash: txResponse.hash };
+      return { txHash: txResponse.hash };
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("OrderBook: Order already cancelled")) {
+        return { txHash: "Previously Cancelled" };
+      }
+      throw e;
+    }
   }
 
   /**

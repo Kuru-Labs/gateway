@@ -119,6 +119,16 @@ export class EVMTxBroadcaster {
             expectedSequence
           );
           txResponse = await this.createAndSend(transaction, expectedSequence);
+        } else if (e.message.includes('Expected nonce to be')) {
+          const expectedSequence = Number(
+              e.message.split('Expected nonce to be ')[1].split(' ')[0]
+          );
+          logger.info(`Expected nonce: ${expectedSequence}`);
+          await this._chain.nonceManager.overridePendingNonce(
+              this._wallet_address,
+              expectedSequence
+          );
+          txResponse = await this.createAndSend(transaction, expectedSequence);
         } else {
           logger.error(e.message);
           throw e;

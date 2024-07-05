@@ -7,16 +7,16 @@
    "timestamp":"2023-06-10T15:06:37.596+00:00",
    "tokens":[
       {
-         "chainId":1,
-         "address":"0x64079a2Edd1104a2323E2b732A1244BCE011B1F5",
+         "chainId":31337,
+         "address":"0x5FbDB2315678afecb367f032d93F642f64180aa3",
          "name":"SOL",
          "symbol":"SOL",
          "decimals":18,
          "logoURI":"https://assets.coingecko.com/coins/images/28385/thumb/FISH-200px.png?1670060725"
       },
       {
-         "chainId":1,
-         "address":"0x0Deeb4b6492C1a55Bb7C0555AaFf65fF6dC424B2",
+         "chainId":31337,
+         "address":"0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
          "name":"USDC",
          "symbol":"USDC",
          "decimals":18,
