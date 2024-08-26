@@ -23,8 +23,8 @@
     "test:scripts": "jest -i --verbose ./test-scripts/*.test.ts"
   },
   "dependencies": {
-    "@cosmjs/amino": "^0.32.2",
     "@bancor/carbon-sdk": "^0.0.93-DEV",
+    "@cosmjs/amino": "^0.32.2",
     "@cosmjs/proto-signing": "^0.31.1",
     "@cosmjs/stargate": "^0.31.1",
     "@cosmjs/tendermint-rpc": "^0.32.2",
@@ -70,7 +70,7 @@
     "ajv": "^8.6.3",
     "algosdk": "^2.2.0",
     "app-root-path": "^3.0.0",
-    "axios": "^1.6.0",
+    "axios": "^1.7.5",
     "big.js": "6.1.1",
     "bn.js": "^5.2.1",
     "body-parser": "^1.19.0",

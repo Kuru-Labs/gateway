@@ -6,6 +6,7 @@ import {
   ContractTransaction,
 } from 'ethers';
 import { Ethereum } from '../../chains/ethereum/ethereum';
+import axios from 'axios';
 
 import {
   ClobMarketsRequest,
@@ -33,6 +34,7 @@ import { MarginAccount, Markets, Assets } from './kuru.constants';
 import { GetOrderStatusKey, GetTokensFromMarketSymbol, Log10BigNumber } from './kuru.utils';
 import orderbookAbi from './OrderBook.abi.json';
 import marginAccountAbi from './MarginAccount.abi.json';
+import routerAbi from './Router.abi.json';
 
 export class Kuru implements CLOBish {
   private static _instances: { [name: string]: Kuru };
@@ -41,6 +43,7 @@ export class Kuru implements CLOBish {
   private _ready: boolean = false;
   private _marketContracts: { [key: string]: Contract } = {};
   private _marginAccountContract: Contract;
+  private _routerContract: Contract;
   public parsedMarkets: MarketInfo = [];
   public router: any;
 
@@ -53,6 +56,11 @@ export class Kuru implements CLOBish {
       this._chain.provider,
     );
     this.router = this._conf.routerAddress(this._chain.chain);
+    this._routerContract = new Contract(
+      this.router,
+      routerAbi.abi,
+      this._chain.provider,
+    );
   }
 
   /**
@@ -84,8 +92,7 @@ export class Kuru implements CLOBish {
         this._chain.provider,
       );
       this._marketContracts[market] = contractInstance;
-
-      const marketParamsData = await contractInstance.getMarketParams();
+      const marketParamsData = await this._routerContract.verifiedMarket(address);
       const marketParams = {
         pricePrecision: BigNumber.from(marketParamsData[0]),
         sizePrecision: BigNumber.from(marketParamsData[1]),
@@ -297,40 +304,39 @@ export class Kuru implements CLOBish {
   public async orders(
     req: ClobGetOrderRequest,
   ): Promise<{ orders: ClobGetOrderResponse['orders'] }> {
-    const marketContract = this._marketContracts[req.market];
-
-    if (!marketContract) {
-      throw new Error(`Market contract for ${req.market} not found`);
-    }
-
-    const marketInfo: MarketInfo = this.parsedMarkets[req.market];
-    if (marketInfo === undefined) throw Error('Invalid market');
-
+    const marketInfo = this.parsedMarkets[req.market];
     if (!marketInfo) {
       throw new Error(`Market info for ${req.market} not found`);
     }
-
-    const data = await marketContract.getOrderDetails(req.orderId);
-    const size: ethers.BigNumber = data[0][1];
-    const price: ethers.BigNumber = BigNumber.from(data[0][4]);
-    const isBuy: ethers.BigNumber = data[0][5];
-    const status: BigNumber = data[1];
-
-    const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
-    const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
-
-    const order = {
-      price: ethers.utils.formatUnits(price, pricePrecision),
-      quantity: ethers.utils.formatUnits(size, sizePrecision),
-      isBuy: isBuy.toString(),
-      orderId: req.orderId,
-      market: req.market,
-      state: GetOrderStatusKey(status.toNumber()),
-    };
-
-    return {
-      orders: [order],
-    };
+  
+    // Construct the endpoint using the configured API URL
+    const endpoint = `${KuruConfig.API_URL}/orders/${req.orderId}?marketAddress=${req.market}`;
+  
+    try {
+      // Fetch order details from the API
+      const response = await axios.get(endpoint);
+      const data = response.data;
+      
+      const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
+      const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
+      const state = data.isCanceled ? 'CANCELLED' : data.remainingSize.isZero() ? 'FILLED' : 'OPEN';
+      // Build the order object with the correct structure
+      const order = {
+        price: ethers.utils.formatUnits(data.price, pricePrecision),
+        size: ethers.utils.formatUnits(data.size, sizePrecision),
+        isBuy: data.isBuy.toString(),
+        orderId: data.orderId,
+        market: req.market,
+        state: state
+      };
+  
+      return {
+        orders: [order],
+      };
+    } catch (error: any) {
+      console.error(`Error fetching order details from API: ${error.message}`);
+      throw new Error('Failed to fetch order details');
+    }
   }
 
   /**
