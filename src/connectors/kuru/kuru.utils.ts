@@ -56,3 +56,11 @@ export function Log10BigNumber(bn: BigNumber): number {
   const bnString = bn.toString();
   return bnString.length - 1;
 }
+
+export function mulDivRound(
+  value: BigNumber,
+  multiplier: BigNumber,
+  divisor: BigNumber
+): BigNumber {
+  return value.mul(multiplier).add(divisor.div(2)).div(divisor);
+}
