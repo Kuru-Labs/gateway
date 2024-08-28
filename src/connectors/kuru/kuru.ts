@@ -31,7 +31,11 @@ import { bigNumberWithDecimalToStr } from '../../services/base';
 
 import { KuruConfig } from './kuru.config';
 import { MarginAccount, Markets, Assets } from './kuru.constants';
-import { GetTokensFromMarketSymbol, Log10BigNumber, mulDivRound } from './kuru.utils';
+import {
+  GetTokensFromMarketSymbol,
+  Log10BigNumber,
+  mulDivRound,
+} from './kuru.utils';
 import orderbookAbi from './OrderBook.abi.json';
 import marginAccountAbi from './MarginAccount.abi.json';
 import routerAbi from './Router.abi.json';
@@ -92,7 +96,8 @@ export class Kuru implements CLOBish {
         this._chain.provider,
       );
       this._marketContracts[market] = contractInstance;
-      const marketParamsData = await this._routerContract.verifiedMarket(address);
+      const marketParamsData =
+        await this._routerContract.verifiedMarket(address);
       const marketParams = {
         pricePrecision: BigNumber.from(marketParamsData[0]),
         sizePrecision: BigNumber.from(marketParamsData[1]),
@@ -123,7 +128,7 @@ export class Kuru implements CLOBish {
         minSizeStandardized,
         tickSize,
         sizeIncrement,
-        ...GetTokensFromMarketSymbol(market)
+        ...GetTokensFromMarketSymbol(market),
       };
       this.parsedMarkets[market] = marketInfo;
     }
@@ -249,121 +254,182 @@ export class Kuru implements CLOBish {
       asks[price.toString()] = size.toString();
     }
 
-
     // Get AMM prices
-    const ammPrices = await this.getAmmPrices(marketContract, marketInfo, blockNumber);
+    const ammPrices = await this.getAmmPrices(
+      marketContract,
+      marketInfo,
+      blockNumber,
+    );
 
     // Add AMM bids to the bids map
     ammPrices.bids.forEach(([price, size]) => {
-        const priceStr = BigNumber.from(price).toString();
-        const ammSize = BigNumber.from(size);
-        const currentSize = bids[priceStr] ? BigNumber.from(bids[priceStr]) : BigNumber.from(0);
-        bids[priceStr] = currentSize.add(ammSize).toString();
+      const priceStr = BigNumber.from(price).toString();
+      const ammSize = BigNumber.from(size);
+      const currentSize = bids[priceStr]
+        ? BigNumber.from(bids[priceStr])
+        : BigNumber.from(0);
+      bids[priceStr] = currentSize.add(ammSize).toString();
     });
 
     // Add AMM asks to the asks map
     ammPrices.asks.forEach(([price, size]) => {
-        const priceStr = BigNumber.from(price).toString();
-        const ammSize = BigNumber.from(size);
-        const currentSize = asks[priceStr] ? BigNumber.from(asks[priceStr]) : BigNumber.from(0);
-        asks[priceStr] = currentSize.add(ammSize).toString();
+      const priceStr = BigNumber.from(price).toString();
+      const ammSize = BigNumber.from(size);
+      const currentSize = asks[priceStr]
+        ? BigNumber.from(asks[priceStr])
+        : BigNumber.from(0);
+      asks[priceStr] = currentSize.add(ammSize).toString();
     });
 
     const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
     const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
 
     const buys: PriceLevel[] = Object.entries(bids).map(
-        ([price, quantity]) => ({
-            price: ethers.utils.formatUnits(BigNumber.from(price), pricePrecision),
-            quantity: ethers.utils.formatUnits(
-                BigNumber.from(quantity),
-                sizePrecision,
-            ),
-            timestamp: blockNumber,
-        }),
+      ([price, quantity]) => ({
+        price: ethers.utils.formatUnits(BigNumber.from(price), pricePrecision),
+        quantity: ethers.utils.formatUnits(
+          BigNumber.from(quantity),
+          sizePrecision,
+        ),
+        timestamp: blockNumber,
+      }),
     );
 
     const sells: PriceLevel[] = Object.entries(asks).map(
-        ([price, quantity]) => ({
-            price: ethers.utils.formatUnits(BigNumber.from(price), pricePrecision),
-            quantity: ethers.utils.formatUnits(
-                BigNumber.from(quantity),
-                sizePrecision,
-            ),
-            timestamp: blockNumber,
-        }),
+      ([price, quantity]) => ({
+        price: ethers.utils.formatUnits(BigNumber.from(price), pricePrecision),
+        quantity: ethers.utils.formatUnits(
+          BigNumber.from(quantity),
+          sizePrecision,
+        ),
+        timestamp: blockNumber,
+      }),
     );
 
     return { buys, sells };
   }
 
-/**
- * @dev Retrieves only the AMM prices from the order book contract.
- * @param providerOrSigner - The ethers.js provider to interact with the blockchain.
- * @param orderbookAddress - The address of the order book contract.
- * @param marketParams - The market parameters including price and size precision.
- * @returns A promise that resolves to the AMM prices data.
- */
-private async getAmmPrices(
+  /**
+   * @dev Retrieves only the AMM prices from the order book contract.
+   * @param providerOrSigner - The ethers.js provider to interact with the blockchain.
+   * @param orderbookAddress - The address of the order book contract.
+   * @param marketParams - The market parameters including price and size precision.
+   * @returns A promise that resolves to the AMM prices data.
+   */
+  private async getAmmPrices(
     orderbook: Contract,
     marketParams: MarketInfo,
     blockNumber: number,
-  ): Promise<{ bids: number[][], asks: number[][] }> {
+  ): Promise<{ bids: number[][]; asks: number[][] }> {
+    let vaultParamsData = await orderbook.getVaultParams({
+      blockTag: blockNumber,
+    });
 
-  let vaultParamsData = await orderbook.getVaultParams({blockTag : blockNumber});
+    const vaultParams = {
+      kuruAmmVault: vaultParamsData[0],
+      vaultBestBid: BigNumber.from(vaultParamsData[1]),
+      bidPartiallyFilledSize: BigNumber.from(vaultParamsData[2]),
+      vaultBestAsk: BigNumber.from(vaultParamsData[3]),
+      askPartiallyFilledSize: BigNumber.from(vaultParamsData[4]),
+      vaultBidOrderSize: BigNumber.from(vaultParamsData[5]),
+      vaultAskOrderSize: BigNumber.from(vaultParamsData[6]),
+    };
 
-  const vaultParams =  {
-    kuruAmmVault: vaultParamsData[0],
-    vaultBestBid: BigNumber.from(vaultParamsData[1]),
-    bidPartiallyFilledSize: BigNumber.from(vaultParamsData[2]),
-    vaultBestAsk: BigNumber.from(vaultParamsData[3]),
-    askPartiallyFilledSize: BigNumber.from(vaultParamsData[4]),
-    vaultBidOrderSize: BigNumber.from(vaultParamsData[5]),
-    vaultAskOrderSize: BigNumber.from(vaultParamsData[6]),
-  };
+    let {
+      vaultBestAsk,
+      vaultBestBid,
+      vaultBidOrderSize,
+      vaultAskOrderSize,
+      bidPartiallyFilledSize,
+      askPartiallyFilledSize,
+    } = vaultParams;
 
-  let { vaultBestAsk, vaultBestBid, vaultBidOrderSize, vaultAskOrderSize, bidPartiallyFilledSize, askPartiallyFilledSize } = vaultParams;
+    let bids: number[][] = [];
+    let asks: number[][] = [];
 
-  let bids: number[][] = [];
-  let asks: number[][] = [];
+    let vaultBidOrderSizeAsFloat = parseFloat(
+      ethers.utils.formatUnits(
+        vaultBidOrderSize,
+        Log10BigNumber(marketParams.sizePrecision),
+      ),
+    );
+    let vaultAskOrderSizeAsFloat = parseFloat(
+      ethers.utils.formatUnits(
+        vaultAskOrderSize,
+        Log10BigNumber(marketParams.sizePrecision),
+      ),
+    );
+    const firstBidOrderSizeAsFloat = parseFloat(
+      ethers.utils.formatUnits(
+        vaultBidOrderSize.sub(bidPartiallyFilledSize),
+        Log10BigNumber(marketParams.sizePrecision),
+      ),
+    );
+    const firstAskOrderSizeAsFloat = parseFloat(
+      ethers.utils.formatUnits(
+        vaultAskOrderSize.sub(askPartiallyFilledSize),
+        Log10BigNumber(marketParams.sizePrecision),
+      ),
+    );
 
-  let vaultBidOrderSizeAsFloat = parseFloat(ethers.utils.formatUnits(vaultBidOrderSize, Log10BigNumber(marketParams.sizePrecision)));
-  let vaultAskOrderSizeAsFloat = parseFloat(ethers.utils.formatUnits(vaultAskOrderSize, Log10BigNumber(marketParams.sizePrecision)));
-  const firstBidOrderSizeAsFloat = parseFloat(ethers.utils.formatUnits(vaultBidOrderSize.sub(bidPartiallyFilledSize), Log10BigNumber(marketParams.sizePrecision)));
-  const firstAskOrderSizeAsFloat = parseFloat(ethers.utils.formatUnits(vaultAskOrderSize.sub(askPartiallyFilledSize), Log10BigNumber(marketParams.sizePrecision)));
+    if (vaultBidOrderSize.isZero()) {
+      return { bids, asks };
+    }
 
-  if (vaultBidOrderSize.isZero()) {
+    if (vaultParams.kuruAmmVault !== ethers.constants.AddressZero) {
+      // Add vault bid orders to AMM prices
+      for (let i = 0; i < 30; i++) {
+        if (vaultBestBid.isZero()) break;
+        bids.push([
+          parseFloat(ethers.utils.formatUnits(vaultBestBid, 18)),
+          i === 0 ? firstBidOrderSizeAsFloat : vaultBidOrderSizeAsFloat,
+        ]);
+        vaultBestBid = mulDivRound(
+          vaultBestBid,
+          BigNumber.from(1000),
+          BigNumber.from(1003),
+        );
+        vaultBidOrderSize = mulDivRound(
+          vaultBidOrderSize,
+          BigNumber.from(2003),
+          BigNumber.from(2000),
+        );
+        vaultBidOrderSizeAsFloat = parseFloat(
+          ethers.utils.formatUnits(
+            vaultBidOrderSize,
+            Log10BigNumber(marketParams.sizePrecision),
+          ),
+        );
+      }
+
+      // Add vault ask orders to AMM prices
+      for (let i = 0; i < 30; i++) {
+        if (vaultBestAsk.gte(ethers.constants.MaxUint256)) break;
+        asks.push([
+          parseFloat(ethers.utils.formatUnits(vaultBestAsk, 18)),
+          i === 0 ? firstAskOrderSizeAsFloat : vaultAskOrderSizeAsFloat,
+        ]);
+        vaultBestAsk = mulDivRound(
+          vaultBestAsk,
+          BigNumber.from(1003),
+          BigNumber.from(1000),
+        );
+        vaultAskOrderSize = mulDivRound(
+          vaultAskOrderSize,
+          BigNumber.from(2000),
+          BigNumber.from(2003),
+        );
+        vaultAskOrderSizeAsFloat = parseFloat(
+          ethers.utils.formatUnits(
+            vaultAskOrderSize,
+            Log10BigNumber(marketParams.sizePrecision),
+          ),
+        );
+      }
+    }
+
     return { bids, asks };
   }
-
-  if (vaultParams.kuruAmmVault !== ethers.constants.AddressZero) {
-    // Add vault bid orders to AMM prices
-    for (let i = 0; i < 30; i++) {
-      if (vaultBestBid.isZero()) break;
-      bids.push([
-        parseFloat(ethers.utils.formatUnits(vaultBestBid, 18)),
-        i === 0 ? firstBidOrderSizeAsFloat : vaultBidOrderSizeAsFloat
-      ]);
-      vaultBestBid = mulDivRound(vaultBestBid, BigNumber.from(1000), BigNumber.from(1003));
-      vaultBidOrderSize = mulDivRound(vaultBidOrderSize, BigNumber.from(2003), BigNumber.from(2000));
-      vaultBidOrderSizeAsFloat = parseFloat(ethers.utils.formatUnits(vaultBidOrderSize, Log10BigNumber(marketParams.sizePrecision)));
-    }
-
-    // Add vault ask orders to AMM prices
-    for (let i = 0; i < 30; i++) {
-      if (vaultBestAsk.gte(ethers.constants.MaxUint256)) break;
-      asks.push([
-        parseFloat(ethers.utils.formatUnits(vaultBestAsk, 18)),
-        i === 0 ? firstAskOrderSizeAsFloat : vaultAskOrderSizeAsFloat
-      ]);
-      vaultBestAsk = mulDivRound(vaultBestAsk, BigNumber.from(1003), BigNumber.from(1000));
-      vaultAskOrderSize = mulDivRound(vaultAskOrderSize, BigNumber.from(2000), BigNumber.from(2003));
-      vaultAskOrderSizeAsFloat = parseFloat(ethers.utils.formatUnits(vaultAskOrderSize, Log10BigNumber(marketParams.sizePrecision)));
-    }
-  }
-
-  return { bids, asks };
-}
 
   /**
    * Get the ticker for a specific market.
@@ -371,17 +437,17 @@ private async getAmmPrices(
    * @returns An object containing market information and the current price.
    */
   public async ticker(
-  req: ClobTickerRequest,
-): Promise < { markets: MarketInfo } > {
-  const ob = await this.orderBook(req as ClobOrderbookRequest);
-  let price = BigNumber.from(0);
-  if(ob.buys.length !== 0) {
-  price = ob.buys.reduce((max, order) => {
-    const price = BigNumber.from(order.price);
-    return price.gt(max) ? price : max;
-  }, BigNumber.from(0));
-}
-return await { ...this.markets(req), price: price.toString() };
+    req: ClobTickerRequest,
+  ): Promise<{ markets: MarketInfo }> {
+    const ob = await this.orderBook(req as ClobOrderbookRequest);
+    let price = BigNumber.from(0);
+    if (ob.buys.length !== 0) {
+      price = ob.buys.reduce((max, order) => {
+        const price = BigNumber.from(order.price);
+        return price.gt(max) ? price : max;
+      }, BigNumber.from(0));
+    }
+    return await { ...this.markets(req), price: price.toString() };
   }
 
   /**
@@ -390,42 +456,46 @@ return await { ...this.markets(req), price: price.toString() };
    * @returns An object containing the requested orders.
    */
   public async orders(
-  req: ClobGetOrderRequest,
-): Promise < { orders: ClobGetOrderResponse['orders'] } > {
-  const marketInfo = this.parsedMarkets[req.market];
-  if(!marketInfo) {
-    throw new Error(`Market info for ${req.market} not found`);
-  }
+    req: ClobGetOrderRequest,
+  ): Promise<{ orders: ClobGetOrderResponse['orders'] }> {
+    const marketInfo = this.parsedMarkets[req.market];
+    if (!marketInfo) {
+      throw new Error(`Market info for ${req.market} not found`);
+    }
 
     // Construct the endpoint using the configured API URL
     const endpoint = `${KuruConfig.API_URL}/orders/${req.orderId}?marketAddress=${req.market}`;
 
-  try {
-    // Fetch order details from the API
-    const response = await axios.get(endpoint);
-    const data = response.data;
+    try {
+      // Fetch order details from the API
+      const response = await axios.get(endpoint);
+      const data = response.data;
 
-    const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
-    const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
-    const state = data.isCanceled ? 'CANCELLED' : data.remainingSize.isZero() ? 'FILLED' : 'OPEN';
-    // Build the order object with the correct structure
-    const order = {
-      price: ethers.utils.formatUnits(data.price, pricePrecision),
-      size: ethers.utils.formatUnits(data.size, sizePrecision),
-      isBuy: data.isBuy.toString(),
-      orderId: data.orderId,
-      market: req.market,
-      state: state
-    };
+      const pricePrecision = Log10BigNumber(marketInfo.pricePrecision);
+      const sizePrecision = Log10BigNumber(marketInfo.sizePrecision);
+      const state = data.isCanceled
+        ? 'CANCELLED'
+        : data.remainingSize.isZero()
+          ? 'FILLED'
+          : 'OPEN';
+      // Build the order object with the correct structure
+      const order = {
+        price: ethers.utils.formatUnits(data.price, pricePrecision),
+        size: ethers.utils.formatUnits(data.size, sizePrecision),
+        isBuy: data.isBuy.toString(),
+        orderId: data.orderId,
+        market: req.market,
+        state: state,
+      };
 
-    return {
-      orders: [order],
-    };
-  } catch(error: any) {
-    console.error(`Error fetching order details from API: ${error.message}`);
-    throw new Error('Failed to fetch order details');
+      return {
+        orders: [order],
+      };
+    } catch (error: any) {
+      console.error(`Error fetching order details from API: ${error.message}`);
+      throw new Error('Failed to fetch order details');
+    }
   }
-}
 
   /**
    * Post a new order to the market.
@@ -433,64 +503,64 @@ return await { ...this.markets(req), price: price.toString() };
    * @returns An object containing the transaction hash and order ID.
    */
   public async postOrder(
-  req: ClobPostOrderRequest,
-): Promise < { txHash: string; id: string } > {
-  const marketInfo: MarketInfo = this.parsedMarkets[req.market];
-  if(marketInfo === undefined) throw Error('Invalid market');
+    req: ClobPostOrderRequest,
+  ): Promise<{ txHash: string; id: string }> {
+    const marketInfo: MarketInfo = this.parsedMarkets[req.market];
+    if (marketInfo === undefined) throw Error('Invalid market');
 
-const marketContract = this._marketContracts[req.market];
-const price = ethers.utils.parseUnits(
-  req.price,
-  Log10BigNumber(marketInfo.pricePrecision),
-);
-const size = ethers.utils.parseUnits(
-  req.amount,
-  Log10BigNumber(marketInfo.sizePrecision),
-);
+    const marketContract = this._marketContracts[req.market];
+    const price = ethers.utils.parseUnits(
+      req.price,
+      Log10BigNumber(marketInfo.pricePrecision),
+    );
+    const size = ethers.utils.parseUnits(
+      req.amount,
+      Log10BigNumber(marketInfo.sizePrecision),
+    );
 
-let tx;
-if (req.side === 'BUY') {
-  tx = await marketContract.populateTransaction.addBuyOrder(
-    price,
-    size,
-    req.orderType === 'LIMIT_MAKER',
-  );
-} else {
-  tx = await marketContract.populateTransaction.addSellOrder(
-    price,
-    size,
-    req.orderType === 'LIMIT_MAKER',
-  );
-}
+    let tx;
+    if (req.side === 'BUY') {
+      tx = await marketContract.populateTransaction.addBuyOrder(
+        price,
+        size,
+        req.orderType === 'LIMIT_MAKER',
+      );
+    } else {
+      tx = await marketContract.populateTransaction.addSellOrder(
+        price,
+        size,
+        req.orderType === 'LIMIT_MAKER',
+      );
+    }
 
-const txResponse: ContractTransaction = await EVMTxBroadcaster.getInstance(
-  this._chain,
-  req.address,
-).broadcast(tx);
+    const txResponse: ContractTransaction = await EVMTxBroadcaster.getInstance(
+      this._chain,
+      req.address,
+    ).broadcast(tx);
 
-const receipt = await txResponse.wait();
+    const receipt = await txResponse.wait();
 
-// Create a contract interface to parse the logs
-const iface = new ethers.utils.Interface(orderbookAbi.abi);
+    // Create a contract interface to parse the logs
+    const iface = new ethers.utils.Interface(orderbookAbi.abi);
 
-// Find and parse the OrderCreated event log
-const log = receipt.logs.find((log) => {
-  try {
+    // Find and parse the OrderCreated event log
+    const log = receipt.logs.find((log) => {
+      try {
+        const parsedLog = iface.parseLog(log);
+        return parsedLog.name === 'OrderCreated';
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (!log) {
+      return { txHash: txResponse.hash, id: '0' };
+    }
+
     const parsedLog = iface.parseLog(log);
-    return parsedLog.name === 'OrderCreated';
-  } catch (e) {
-    return false;
-  }
-});
+    const orderId = parsedLog.args.orderId.toString();
 
-if (!log) {
-  return { txHash: txResponse.hash, id: "0" };
-}
-
-const parsedLog = iface.parseLog(log);
-const orderId = parsedLog.args.orderId.toString();
-
-return { txHash: txResponse.hash, id: orderId };
+    return { txHash: txResponse.hash, id: orderId };
   }
 
   /**
@@ -499,27 +569,32 @@ return { txHash: txResponse.hash, id: orderId };
    * @returns An object containing the transaction hash.
    */
   public async deleteOrder(
-  req: ClobDeleteOrderRequest,
-): Promise < { txHash: string } > {
-  const marketContract = this._marketContracts[req.market];
+    req: ClobDeleteOrderRequest,
+  ): Promise<{ txHash: string }> {
+    const marketContract = this._marketContracts[req.market];
 
-  const tx = await marketContract.populateTransaction.batchCancelOrders([req.orderId]);
-  let txResponse: ContractTransaction;
-  try {
-    txResponse = await EVMTxBroadcaster.getInstance(
-      this._chain,
-      req.address,
-    ).broadcast(tx);
-    await txResponse.wait();
+    const tx = await marketContract.populateTransaction.batchCancelOrders([
+      req.orderId,
+    ]);
+    let txResponse: ContractTransaction;
+    try {
+      txResponse = await EVMTxBroadcaster.getInstance(
+        this._chain,
+        req.address,
+      ).broadcast(tx);
+      await txResponse.wait();
 
-    return { txHash: txResponse.hash };
-  } catch(e) {
-    if (e instanceof Error && e.message.includes("OrderBook: Order already cancelled")) {
-      return { txHash: "Previously Cancelled" };
+      return { txHash: txResponse.hash };
+    } catch (e) {
+      if (
+        e instanceof Error &&
+        e.message.includes('OrderBook: Order already cancelled')
+      ) {
+        return { txHash: 'Previously Cancelled' };
+      }
+      throw e;
     }
-    throw e;
   }
-}
 
   /**
    * Perform a batch update of orders.
@@ -527,94 +602,94 @@ return { txHash: txResponse.hash, id: orderId };
    * @returns An object containing the transaction hash and a list of order IDs.
    */
   public async batchOrders(
-  req: ClobBatchUpdateRequest,
-): Promise < { txHash: string; ids: string[] } > {
-  let marketId;
-  if(req.createOrderParams) {
-  marketId = req.createOrderParams[0].market;
-} else if (req.cancelOrderParams) {
-  marketId = req.cancelOrderParams[0].market;
-} else {
-  throw new Error('Bad request: No params to create or cancel orders');
-}
-
-const marketContract = this._marketContracts[marketId];
-const buyPrices: BigNumber[] = [];
-const buySizes: BigNumber[] = [];
-const sellPrices: BigNumber[] = [];
-const sellSizes: BigNumber[] = [];
-const cancelOrderIds: BigNumber[] = [];
-const postOnlyFlag: boolean =
-  req.createOrderParams?.[0].orderType === 'LIMIT_MAKER' || false;
-
-for (const createOrder of req.createOrderParams || []) {
-  const marketInfo: MarketInfo = this.parsedMarkets[createOrder.market];
-  if (marketInfo === undefined) {
-    throw new Error(`Invalid market: ${createOrder.market}`);
-  }
-
-  const price = ethers.utils.parseUnits(
-    createOrder.price,
-    Log10BigNumber(marketInfo.pricePrecision),
-  );
-  const size = ethers.utils.parseUnits(
-    createOrder.amount,
-    Log10BigNumber(marketInfo.sizePrecision),
-  );
-
-  if (createOrder.side === 'BUY') {
-    buyPrices.push(price);
-    buySizes.push(size);
-  } else {
-    sellPrices.push(price);
-    sellSizes.push(size);
-  }
-}
-
-for (const cancelOrder of req.cancelOrderParams || []) {
-  const marketInfo: MarketInfo = this.parsedMarkets[cancelOrder.market];
-  if (marketInfo === undefined) {
-    throw new Error(`Invalid market: ${cancelOrder.market}`);
-  }
-
-  cancelOrderIds.push(BigNumber.from(cancelOrder.orderId));
-}
-
-const tx = await marketContract.populateTransaction.batchUpdate(
-  buyPrices,
-  buySizes,
-  sellPrices,
-  sellSizes,
-  cancelOrderIds,
-  postOnlyFlag,
-);
-
-const txResponse: ContractTransaction = await EVMTxBroadcaster.getInstance(
-  this._chain,
-  req.address,
-).broadcast(tx);
-
-const receipt = await txResponse.wait();
-
-// Create a contract interface to parse the logs
-const iface = new ethers.utils.Interface(orderbookAbi.abi);
-
-// Collect all order IDs from the OrderCreated events
-const orderIds: string[] = receipt.logs
-  .filter((log) => log.address === marketContract.address)
-  .map((log) => {
-    try {
-      const parsedLog = iface.parseLog(log);
-      if (parsedLog.name === 'OrderCreated') {
-        return parsedLog.args.orderId.toString();
-      }
-    } catch (e) {
-      return null;
+    req: ClobBatchUpdateRequest,
+  ): Promise<{ txHash: string; ids: string[] }> {
+    let marketId;
+    if (req.createOrderParams) {
+      marketId = req.createOrderParams[0].market;
+    } else if (req.cancelOrderParams) {
+      marketId = req.cancelOrderParams[0].market;
+    } else {
+      throw new Error('Bad request: No params to create or cancel orders');
     }
-  })
-  .filter((orderId) => orderId !== null) as string[];
 
-return { txHash: txResponse.hash, ids: orderIds };
+    const marketContract = this._marketContracts[marketId];
+    const buyPrices: BigNumber[] = [];
+    const buySizes: BigNumber[] = [];
+    const sellPrices: BigNumber[] = [];
+    const sellSizes: BigNumber[] = [];
+    const cancelOrderIds: BigNumber[] = [];
+    const postOnlyFlag: boolean =
+      req.createOrderParams?.[0].orderType === 'LIMIT_MAKER' || false;
+
+    for (const createOrder of req.createOrderParams || []) {
+      const marketInfo: MarketInfo = this.parsedMarkets[createOrder.market];
+      if (marketInfo === undefined) {
+        throw new Error(`Invalid market: ${createOrder.market}`);
+      }
+
+      const price = ethers.utils.parseUnits(
+        createOrder.price,
+        Log10BigNumber(marketInfo.pricePrecision),
+      );
+      const size = ethers.utils.parseUnits(
+        createOrder.amount,
+        Log10BigNumber(marketInfo.sizePrecision),
+      );
+
+      if (createOrder.side === 'BUY') {
+        buyPrices.push(price);
+        buySizes.push(size);
+      } else {
+        sellPrices.push(price);
+        sellSizes.push(size);
+      }
+    }
+
+    for (const cancelOrder of req.cancelOrderParams || []) {
+      const marketInfo: MarketInfo = this.parsedMarkets[cancelOrder.market];
+      if (marketInfo === undefined) {
+        throw new Error(`Invalid market: ${cancelOrder.market}`);
+      }
+
+      cancelOrderIds.push(BigNumber.from(cancelOrder.orderId));
+    }
+
+    const tx = await marketContract.populateTransaction.batchUpdate(
+      buyPrices,
+      buySizes,
+      sellPrices,
+      sellSizes,
+      cancelOrderIds,
+      postOnlyFlag,
+    );
+
+    const txResponse: ContractTransaction = await EVMTxBroadcaster.getInstance(
+      this._chain,
+      req.address,
+    ).broadcast(tx);
+
+    const receipt = await txResponse.wait();
+
+    // Create a contract interface to parse the logs
+    const iface = new ethers.utils.Interface(orderbookAbi.abi);
+
+    // Collect all order IDs from the OrderCreated events
+    const orderIds: string[] = receipt.logs
+      .filter((log) => log.address === marketContract.address)
+      .map((log) => {
+        try {
+          const parsedLog = iface.parseLog(log);
+          if (parsedLog.name === 'OrderCreated') {
+            return parsedLog.args.orderId.toString();
+          }
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter((orderId) => orderId !== null) as string[];
+
+    return { txHash: txResponse.hash, ids: orderIds };
   }
 
   /**
@@ -622,13 +697,13 @@ return { txHash: txResponse.hash, ids: orderIds };
    * @param address - The address to generate the client order ID for.
    * @returns A unique client order ID.
    */
-  async getClientOrderId(address: string): Promise < string > {
-  const blocknumber: number =
-  (await this._chain.getCurrentBlockNumber()) || 0;
-  const timestamp = new Date().toISOString();
-  const id = utils.toUtf8Bytes(`${address}${blocknumber}${timestamp}`);
-  return utils.keccak256(id);
-}
+  async getClientOrderId(address: string): Promise<string> {
+    const blocknumber: number =
+      (await this._chain.getCurrentBlockNumber()) || 0;
+    const timestamp = new Date().toISOString();
+    const id = utils.toUtf8Bytes(`${address}${blocknumber}${timestamp}`);
+    return utils.keccak256(id);
+  }
 
   /**
    * Estimate gas costs for a network request.
@@ -636,16 +711,16 @@ return { txHash: txResponse.hash, ids: orderIds };
    * @returns An object containing gas price, gas price token, gas limit, and gas cost.
    */
   public estimateGas(_req: NetworkSelectionRequest): {
-  gasPrice: number;
-  gasPriceToken: string;
-  gasLimit: number;
-  gasCost: number;
-} {
-  return {
-    gasPrice: this._chain.gasPrice,
-    gasPriceToken: this._chain.nativeTokenSymbol,
-    gasLimit: this._conf.gasLimitEstimate,
-    gasCost: this._chain.gasPrice * this._conf.gasLimitEstimate,
-  };
-}
+    gasPrice: number;
+    gasPriceToken: string;
+    gasLimit: number;
+    gasCost: number;
+  } {
+    return {
+      gasPrice: this._chain.gasPrice,
+      gasPriceToken: this._chain.nativeTokenSymbol,
+      gasLimit: this._conf.gasLimitEstimate,
+      gasCost: this._chain.gasPrice * this._conf.gasLimitEstimate,
+    };
+  }
 }
