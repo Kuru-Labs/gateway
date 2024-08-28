@@ -26,7 +26,7 @@ export const TimeInForce = {
 export const MarginAccount = '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853';
 
 export const Markets = {
-  'SOL-USDC': '0x83b24E8F72f7aD60cEa81f3925Ee54F70608A534',
+  'SOL-USDC': '0xCD4a2D87901F119A79cA134b5A74e8F4EDE37B05',
   'BTC-USDC': '',
 };
 

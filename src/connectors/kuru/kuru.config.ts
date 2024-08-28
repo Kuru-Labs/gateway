@@ -12,5 +12,5 @@ export namespace KuruConfig {
     ],
     'EVM'
   );
-  export const API_URL = 'https://api.kuru.io';
+  export const API_URL = 'https://api.staging.kuru.io:3000';
 }
